@@ -48,7 +48,9 @@ from release_tools.repo import RepositoryError
               help="Do not remove changelog entries from the repository.")
 @click.option('--remote-branch', 'remote_branch', default="master",
               help="Remote branch to push. Default 'master'.")
-def publish(version, author, remote, only_push, no_cleanup, remote_branch):
+@click.option('--add-all', is_flag=True,
+              help="Add all changed files to the release commit.")
+def publish(version, author, remote, only_push, no_cleanup, remote_branch, add_all):
     """Publish a new release.
 
     This script will generate a new release in the repository.
@@ -88,7 +90,7 @@ def publish(version, author, remote, only_push, no_cleanup, remote_branch):
         if not only_push:
             if not no_cleanup:
                 remove_unreleased_changelog_entries(project)
-            add_release_files(project, version)
+            add_release_files(project, version, add_all)
             commit(project, version, author)
 
         if remote:
@@ -126,28 +128,31 @@ def rollback_add_release_files(project):
         pass
 
 
-def add_release_files(project, version):
+def add_release_files(project, version, add_all):
     """Add to the repository all the files needed to publish a release."""
 
     click.echo("Adding files to the release commit...", nl=False)
 
-    # Add version file
-    version_file = project.version_file
+    if add_all:
+        project.repo.add('-A')
+    else:
+        # Add version file
+        version_file = project.version_file
 
-    if not version_file:
-        rollback_add_release_files(project)
-        raise click.ClickException("version file not found")
+        if not version_file:
+            rollback_add_release_files(project)
+            raise click.ClickException("version file not found")
 
-    project.repo.add(version_file)
+        project.repo.add(version_file)
 
-    # Add pyproject.toml file
-    pyproject_file = project.pyproject_file
+        # Add pyproject.toml file
+        pyproject_file = project.pyproject_file
 
-    if not pyproject_file:
-        rollback_add_release_files(project)
-        raise click.ClickException("pyproject file not found")
+        if not pyproject_file:
+            rollback_add_release_files(project)
+            raise click.ClickException("pyproject file not found")
 
-    project.repo.add(pyproject_file)
+        project.repo.add(pyproject_file)
 
     # Add release notes file
     notes_file = os.path.join(project.releases_path, version + '.md')

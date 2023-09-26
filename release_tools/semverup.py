@@ -54,7 +54,9 @@ VERSION_FILE_TEMPLATE = (
               help="Increase only the defined version.")
 @click.option('--pre-release', is_flag=True,
               help="Create a new release candidate version.")
-def semverup(dry_run, bump_version, pre_release):
+@click.option('--current-version',
+              help="Use the given version instead of the version file.")
+def semverup(dry_run, bump_version, pre_release, current_version):
     """Increment version number following semver specification.
 
     This script will bump up the version number of a package in a
@@ -95,12 +97,17 @@ def semverup(dry_run, bump_version, pre_release):
     except RepositoryError as e:
         raise click.ClickException(e)
 
-    # Get the current version number
-    version_file = find_version_file(project)
-    current_version = read_version_number(version_file)
-
-    # Get the pyproject file
-    pyproject_file = find_pyproject_file(project)
+    if current_version:
+        try:
+            current_version = semver.parse_version_info(current_version)
+        except ValueError:
+            msg = "version number '{}' is not a valid semver string"
+            msg = msg.format(current_version)
+            raise click.ClickException(msg)
+    else:
+        # Get the current version number
+        version_file = find_version_file(project)
+        current_version = read_version_number(version_file)
 
     # Determine the new version and produce the output
     if bump_version:
@@ -109,6 +116,8 @@ def semverup(dry_run, bump_version, pre_release):
         new_version = determine_new_version_number(project, current_version, pre_release)
 
     if not dry_run:
+        # Get the pyproject file
+        pyproject_file = find_pyproject_file(project)
         write_version_number(version_file, new_version)
         write_version_number_pyproject(pyproject_file,
                                        new_version)
